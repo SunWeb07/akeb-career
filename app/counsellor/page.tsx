@@ -2,30 +2,18 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import AppLayout from "@/components/AppLayout";
 import Link from "next/link";
-import { Prisma } from "@prisma/client";
-import type { Session as PrismaSession, Task } from "@prisma/client";
+import type { Session, Task } from "@prisma/client";
 
-// Or manually type it:
-type Session = {
+// Define Student type FIRST
+type Student = {
   id: string;
-  student_id: string;
-  counsellor_id: string | null;
-  session_date: Date | null;
-  status: string;
-  career_journey_stage: string | null;
-  career_choice: string | null;
-  emerging_interest: string | null;
-  observations: string | null;
-  session_details: string | null;
-  student_tasks: string | null;
-  institution_tasks: string | null;
-  mindler_needed: boolean;
-  followup_required: boolean;
-  concluded: boolean;
-  created_at: Date;
-  updated_at: Date;
+  full_name: string;
+  akeb_id?: string | null;
+  school_grade?: string | null;
+  school_name?: string | null;
 };
 
+// Then use it in Request type
 type Request = {
   id: string;
   student_id: string;
