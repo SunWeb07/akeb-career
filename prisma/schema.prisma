@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Profile {
+  id             String       @id @default(uuid())
+  full_name      String
+  email          String       @unique
+  role           String       // admin | counsellor | institution | student
+  institution_id String?
+  akeb_id        String?
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+
+  institution    Institution? @relation(fields: [institution_id], references: [id], onDelete: SetNull)
+
+  @@index([institution_id])
+  @@index([role])
+}
+
+model Institution {
+  id         String               @id @default(uuid())
+  name       String
+  type       String
+  council    String?
+  centre     String?
+  created_at DateTime             @default(now())
+  updated_at DateTime             @updatedAt
+
+  users      Profile[]
+  students   StudentInstitution[]
+}
+
+model Student {
+  id                 String               @id @default(uuid())
+  akeb_id            String               @unique
+  full_name          String
+  email              String?
+  contact_number     String?
+  date_of_birth      DateTime?
+  gender             String?
+  school_grade       String?
+  school_name        String?
+  curriculum         String?
+  category           String?
+  council            String?
+  centre             String?
+  fmp_swb_id         String?
+  background         String?
+  concluded          Boolean              @default(false)
+  registration_date  DateTime?
+  created_at         DateTime             @default(now())
+  updated_at         DateTime             @updatedAt
+
+  sessions           Session[]
+  requests           SessionRequest[]
+  tasks              Task[]
+  institutions       StudentInstitution[]
+  mindler_assessment MindlerAssessment?
+
+  @@index([akeb_id])
+  @@index([council])
+  @@index([concluded])
+}
+
+model StudentInstitution {
+  id             String      @id @default(uuid())
+  student_id     String
+  institution_id String
+
+  student        Student     @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+
+  @@unique([student_id, institution_id])
+}
+
+model MindlerAssessment {
+  id               String   @id @default(uuid())
+  student_id       String   @unique
+  mindler_id       String?
+  mindler_password String?
+  result_summary   String?
+  status           String   @default("pending")
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  student          Student  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+}
+
+model SessionRequest {
+  id                String   @id @default(uuid())
+  student_id        String
+  type              String   // initial | followup
+  status            String   @default("pending")
+  fmp_swb_id        String?
+  assessment_status String   @default("pending")
+  reason            String?  // Why student is requesting session
+  topics            String?  // Comma-separated topics of interest
+  preferred_time    String?  // morning | afternoon | evening
+  urgency           String?  // urgent | soon | flexible
+  additional_notes  String?  @db.Text
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  student           Student  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id                   String    @id @default(uuid())
+  student_id           String
+  counsellor_id        String?
+  session_date         DateTime?
+  status               String    @default("scheduled")
+  career_journey_stage String?
+  career_choice        String?
+  emerging_interest    String?
+  observations         String?
+  session_details      String?
+  student_tasks        String?
+  institution_tasks    String?
+  mindler_needed       Boolean   @default(false)
+  followup_required    Boolean   @default(true)
+  concluded            Boolean   @default(false)
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  student              Student   @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  tasks                Task[]
+
+  @@index([student_id])
+  @@index([status])
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  student_id  String
+  session_id  String
+  assigned_to String
+  type        String
+  title       String
+  status      String   @default("pending")
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  student     Student  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  session     Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+}
