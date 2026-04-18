@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import AppLayout from "@/components/AppLayout";
 import Link from "next/link";
-import { Prisma } from "@prisma/client";
+import { Session, Task } from "@prisma/client";
 
 type Student = {
   id: string;
@@ -20,14 +20,17 @@ type Request = {
   student: Student;
 };
 
-// ✅ Proper Prisma type for sessions
-type SessionWithStudent = Prisma.SessionGetPayload<{
-  include: { student: true };
-}>;
+// ✅ Fixed types (no Prisma namespace)
+type SessionWithStudent = Session & {
+  student: Student;
+};
 
-type TaskWithStudent = Prisma.TaskGetPayload<{
-  include: { student: true };
-}>;
+type TaskWithStudent = Task & {
+  student: {
+    id: string;
+    full_name: string;
+  };
+};
 
 export default async function CounsellorPage() {
   const profile = await requireRole(["counsellor", "admin"]);
