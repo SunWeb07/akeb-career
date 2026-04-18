@@ -4,25 +4,14 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
-const COOLDOWN_SECONDS = 60;
-
 export default function LoginPage() {
   const router = useRouter();
-  const [isLocal, setIsLocal] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const local =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1";
-    setIsLocal(local);
-
     // Read error from query string after mount (avoids useSearchParams SSR mismatch)
     const params = new URLSearchParams(window.location.search);
     const e = params.get("error");
@@ -34,106 +23,32 @@ export default function LoginPage() {
           : "Magic link expired or invalid. Please try again."
       );
     }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
   }, []);
-
-  function startCooldown() {
-    setCooldown(COOLDOWN_SECONDS);
-    timerRef.current = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current!);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!isLocal && cooldown > 0) return;
     setLoading(true);
     setError(null);
 
     const supabase = createClient();
 
-    if (isLocal) {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setError(error.message);
-      } else if (data.user?.email) {
-        // Fetch role to redirect to the right home page
-        const res = await fetch(`/api/profile-role?email=${encodeURIComponent(data.user.email)}`);
-        const json = res.ok ? await res.json() : {};
-        const home =
-          json.role === "counsellor"  ? "/counsellor"  :
-          json.role === "institution" ? "/institution" :
-          json.role === "student"     ? "/student"     :
-          "/dashboard";
-        router.push(home);
-        return;
-      }
-    } else {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: `${location.origin}/auth/callback` },
-      });
-      if (error) {
-        if (error.status === 429) {
-          setError("Too many requests — please wait a minute before trying again.");
-          startCooldown();
-        } else {
-          setError(error.message);
-        }
-      } else {
-        setSent(true);
-        startCooldown();
-      }
+    // Always use password login
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setError(error.message);
+    } else if (data.user?.email) {
+      // Fetch role to redirect to the right home page
+      const res = await fetch(`/api/profile-role?email=${encodeURIComponent(data.user.email)}`);
+      const json = res.ok ? await res.json() : {};
+      const home =
+        json.role === "counsellor"  ? "/counsellor"  :
+        json.role === "institution" ? "/institution" :
+        json.role === "student"     ? "/student"     :
+        "/dashboard";
+      router.push(home);
+      return;
     }
     setLoading(false);
-  }
-
-  if (sent) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-900">
-        <div className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-xl space-y-4">
-          {/* Mail icon */}
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
-            <svg className="h-7 w-7 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25H4.5a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0l-9.75 7.5-9.75-7.5" />
-            </svg>
-          </div>
-          <h1 className="text-xl font-bold text-gray-900">Check your inbox</h1>
-          <p className="text-sm text-gray-500">
-            We sent a magic link to{" "}
-            <span className="font-semibold text-gray-900">{email}</span>.
-            Click it to sign in.
-          </p>
-          <div className="space-y-2">
-            <button
-              onClick={() => setSent(false)}
-              className="block w-full text-sm text-blue-600 hover:underline"
-            >
-              Use a different email
-            </button>
-            {cooldown > 0 ? (
-              <p className="text-xs text-gray-400">Resend available in {cooldown}s</p>
-            ) : (
-              <button
-                onClick={() => handleLogin({ preventDefault: () => {} } as React.FormEvent)}
-                className="block w-full text-xs text-gray-400 hover:text-gray-600 hover:underline"
-              >
-                Didn’t receive it? Resend
-              </button>
-            )}
-          </div>
-        </div>
-      </main>
-    );
   }
 
   return (
@@ -154,7 +69,7 @@ export default function LoginPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Sign in</h1>
             <p className="mt-1 text-sm text-gray-500" suppressHydrationWarning>
-              {isLocal ? "Local dev — password login." : "Enter your email to receive a magic link."}
+              Enter your email and password to sign in.
             </p>
           </div>
 
@@ -183,26 +98,24 @@ export default function LoginPage() {
             />
           </div>
 
-          {isLocal && (
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-          )}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+          </div>
 
           <button
             type="submit"
-            disabled={loading || (!isLocal && cooldown > 0)}
+            disabled={loading}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? (
@@ -213,13 +126,7 @@ export default function LoginPage() {
                 </svg>
                 Signing in…
               </>
-            ) : isLocal ? (
-              "Sign in"
-            ) : cooldown > 0 ? (
-              `Resend available in ${cooldown}s`
-            ) : (
-              "Send magic link"
-            )}
+            ) : "Sign in"}
           </button>
         </form>
 
@@ -238,4 +145,3 @@ export default function LoginPage() {
     </main>
   );
 }
-
